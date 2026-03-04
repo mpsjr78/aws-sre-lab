@@ -1,51 +1,27 @@
-FROM node:12.22
-MAINTAINER massimo@it20.info
+# Estágio 1: Build da aplicação Angular (Usando Node do espelho da AWS)
+FROM public.ecr.aws/docker/library/node:12.22.12 AS builder
 
-WORKDIR /
+WORKDIR /app
 
-RUN npm install -g @angular/cli@6.0.0
+# Instalar dependências e CLI do Angular
+COPY package.json .
+RUN npm install
+RUN npm install -g @angular/cli@8.3.29
 
-RUN npm install node-sass@4.13.1
+# Copiar código e compilar
+COPY . .
+RUN ng build --prod
 
-ADD clarity-seed-newfiles clarity-seed-newfiles 
+# Estágio 2: Servidor Web (Usando Nginx do espelho da AWS)
+FROM public.ecr.aws/docker/library/nginx:1.17.10
 
-RUN git clone https://github.com/vmware/clarity-seed.git
-WORKDIR /clarity-seed
-RUN git checkout -b f3250ee26ceb847f61bb167a90dc957edf6e7f43
+# Metadados (substituindo o comando MAINTAINER que estava deprecated no log)
+LABEL maintainer="voce@exemplo.com"
 
-RUN cp /clarity-seed-newfiles/src/index.html /clarity-seed/src/index.html
-RUN cp /clarity-seed-newfiles/src/styles.css /clarity-seed/src/styles.css
-RUN cp /clarity-seed-newfiles/src/env.js /clarity-seed/src/env.js
-RUN cp /clarity-seed-newfiles/src/app/app* /clarity-seed/src/app
-RUN cp /clarity-seed-newfiles/src/app/env* /clarity-seed/src/app
-RUN cp /clarity-seed-newfiles/src/environments/env* /clarity-seed/src/environments
-RUN cp /clarity-seed-newfiles/package.json /clarity-seed/package.json
-RUN cp /clarity-seed-newfiles/angular-cli.json /clarity-seed/.angular-cli.json
-RUN rm -r /clarity-seed/src/app/home
-RUN rm -r /clarity-seed/src/app/about
+# Copiar os artefatos compilados do estágio anterior
+COPY --from=builder /app/dist/yelb-ui/ /usr/share/nginx/html/
 
-WORKDIR /clarity-seed/src
+# Configuração customizada do Nginx (se houver no repositório)
+# COPY nginx-custom.conf /etc/nginx/conf.d/default.conf
 
-RUN npm install  
-
-RUN ng build --environment=prod --output-path=./prod/dist/ -aot -vc -cc -dop --buildOptimizer
-RUN ng build --environment=test --output-path=./test/dist/
-RUN ng build --environment=dev --output-path=./dev/dist/
-
-
-FROM nginx:1.17.10
-MAINTAINER massimo@it20.info
-
-WORKDIR /
-ADD startup.sh startup.sh
-
-ENV UI_ENV=prod 
-
-RUN chmod +x startup.sh
-
-COPY --from=0 /clarity-seed/src/prod/dist /clarity-seed/prod/dist
-COPY --from=0 /clarity-seed/src/test/dist /clarity-seed/test/dist
-COPY --from=0 /clarity-seed/src/dev/dist /clarity-seed/dev/dist
-
-CMD ["./startup.sh"]
-
+EXPOSE 80
