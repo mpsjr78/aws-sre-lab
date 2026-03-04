@@ -4,8 +4,10 @@ phases:
   pre_build:
     commands:
       - echo Logging in to Amazon ECR...
-      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin SEU_URI_DO_ECR
+      # 1. Definimos a variável PRIMEIRO
       - REPOSITORY_URI=346234084924.dkr.ecr.us-east-1.amazonaws.com/yelb-ui
+      # 2. Agora usamos a variável ($REPOSITORY_URI) para fazer o login
+      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REPOSITORY_URI
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=${COMMIT_HASH:=latest}
   build:
